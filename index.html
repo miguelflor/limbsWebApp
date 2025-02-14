@@ -2,50 +2,253 @@
 <html lang="en">
 <head>
     <title>Webcam Keypoint Detection</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            color: #fff;
+            margin-bottom: 30px;
+            font-weight: 300;
+            font-size: 2.5rem;
+            text-align: center;
+        }
+
+        .container {
+            position: relative;
+            width: fit-content;
+            height: fit-content;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        #webcam {
+            display: block;
+            max-width: 800px;
+            width: 100%;
+            height: auto;
+        }
+
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4CAF50;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .control-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            background: #2196F3;
+            color: white;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .control-btn:hover {
+            background: #1976D2;
+        }
+    </style>
 </head>
 <body>
-    <video id="webcam" autoplay playsinline></video>
-    <canvas id="canvas"></canvas>
+    <h1>Real-time Pose Detection</h1>
+    <br>
+    <h2>Make shure all your limbs are on the webcam</h2>
+    <div class="container">
+        <video id="webcam" autoplay playsinline></video>
+        <canvas id="canvas"></canvas>
+    </div>
+    <div class="status">
+        <div class="status-dot"></div>
+        <span>Detection active</span>
+    </div>
+    <div class="controls">
+        <button class="control-btn" onclick="toggleDetection()">Pause/Resume</button>
+        <button class="control-btn" onclick="toggleSkeletonStyle()">Toggle Style</button>
+    </div>
+
     <script>
         const video = document.getElementById('webcam');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
+        let isDetectionActive = true;
+        let useGradientStyle = true;
 
         async function setupWebcam() {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            video.srcObject = stream;
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+                
+                video.addEventListener('loadedmetadata', () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                });
+            } catch (error) {
+                console.error('Error accessing webcam:', error);
+            }
+        }
+
+        function toggleDetection() {
+            isDetectionActive = !isDetectionActive;
+            const statusDot = document.querySelector('.status-dot');
+            statusDot.style.background = isDetectionActive ? '#4CAF50' : '#F44336';
+            document.querySelector('.status span').textContent = 
+                isDetectionActive ? 'Detection active' : 'Detection paused';
+        }
+
+        function toggleSkeletonStyle() {
+            useGradientStyle = !useGradientStyle;
         }
 
         async function sendFrameToBackend() {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            if (!isDetectionActive) return;
 
-            // Convert to Base64
-            const frame = canvas.toDataURL("image/jpeg");  
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = video.videoWidth;
+            tempCanvas.height = video.videoHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+
+            const frame = tempCanvas.toDataURL("image/jpeg");
             
-            // Send to Hugging Face API
-            const response = await fetch("https://miguelflor-limbsai-api.hf.space", {
-                method: "POST",
-                body: JSON.stringify({ image: frame }),
-                headers: { "Content-Type": "application/json" }
-            });
-
-            const data = await response.json();
-            drawKeypoints(data.keypoints);
+            try {
+                const response = await fetch("https://miguelflor-limbsai-api.hf.space/predict", {
+                    method: "POST",
+                    body: JSON.stringify({ image: frame }),
+                    headers: { "Content-Type": "application/json" }
+                });
+                
+                const data = await response.json();
+                drawFrame(data.keypoints);
+            } catch (error) {
+                console.error("Error sending frame:", error);
+            }
         }
 
-        function drawKeypoints(keypoints) {
-            keypoints.forEach(([x, y]) => {
+        let allKeypoints = [];
+
+        const connections = [
+            [0, 1], [1, 2], [2, 6], [6, 3], [3, 4], [4, 5],  // legs
+            [6, 7], [7, 8], [8, 9],  // body
+            [7, 12], [12, 11], [11, 10],  // right arm
+            [7, 13], [13, 14], [14, 15]  // left arm
+        ];
+
+        function drawFrame(keypoints) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            allKeypoints = keypoints;
+
+            if (useGradientStyle) {
+                drawGradientStyle();
+            } else {
+                drawSimpleStyle();
+            }
+        }
+
+        function drawGradientStyle() {
+            // Draw connections with gradient
+            connections.forEach(([start, end]) => {
+                const startX = allKeypoints[start][0];
+                const startY = allKeypoints[start][1];
+                const endX = allKeypoints[end][0];
+                const endY = allKeypoints[end][1];
+                
+                const gradient = ctx.createLinearGradient(startX, startY, endX, endY);
+                gradient.addColorStop(0, 'rgba(33, 150, 243, 0.7)');
+                gradient.addColorStop(1, 'rgba(156, 39, 176, 0.7)');
+                
                 ctx.beginPath();
-                ctx.arc(x, y, 5, 0, 2 * Math.PI);
-                ctx.fillStyle = "red";
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(endX, endY);
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = gradient;
+                ctx.stroke();
+            });
+
+            // Draw keypoints with glow effect
+            allKeypoints.forEach(([x, y]) => {
+                ctx.beginPath();
+                ctx.arc(x, y, 6, 0, 2 * Math.PI);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.fill();
+                100
+                // Add glow effect
+                ctx.beginPath();
+                ctx.arc(x, y, 8, 0, 2 * Math.PI);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            });
+        }
+
+        function drawSimpleStyle() {
+            // Draw connections
+            connections.forEach(([start, end]) => {
+                const startX = allKeypoints[start][0];
+                const startY = allKeypoints[start][1];
+                const endX = allKeypoints[end][0];
+                const endY = allKeypoints[end][1];
+                
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(endX, endY);
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+                ctx.stroke();
+            });
+
+            // Draw keypoints
+            allKeypoints.forEach(([x, y]) => {
+                ctx.beginPath();
+                ctx.arc(x, y, 4, 0, 2 * Math.PI);
+                ctx.fillStyle = 'rgba(255, 87, 34, 0.8)';
                 ctx.fill();
             });
         }
 
         setupWebcam();
-        setInterval(sendFrameToBackend, 100);  // Send frames every 100ms
+        setInterval(sendFrameToBackend, 500);
     </script>
 </body>
 </html>
