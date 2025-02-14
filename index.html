@@ -89,12 +89,36 @@
         .control-btn:hover {
             background: #1976D2;
         }
+
+        .download-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            background: #FF5722;
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-top: 30px;
+        }
+
+        .download-btn:hover {
+            background: #E64A19;
+        }
+
+        .info-text {
+            margin-top: 20px;
+            font-size: 1rem;
+            color: #FFEB3B;
+            text-align: center;
+        }
+
     </style>
 </head>
 <body>
     <h1>Real-time Pose Detection</h1>
     <br>
-    <h2>Make shure all your limbs are on the webcam</h2>
+    <h2>Make sure all your limbs are on the webcam</h2>
     <div class="container">
         <video id="webcam" autoplay playsinline></video>
         <canvas id="canvas"></canvas>
@@ -107,6 +131,12 @@
         <button class="control-btn" onclick="toggleDetection()">Pause/Resume</button>
         <button class="control-btn" onclick="toggleSkeletonStyle()">Toggle Style</button>
     </div>
+
+    <div class="info-text">
+        <p>HuggingFace servers are too slow? Try running it on your computer.</p>
+    </div>
+
+    <button class="download-btn" onclick="downloadExe()">Download .exe</button>
 
     <script>
         const video = document.getElementById('webcam');
@@ -212,7 +242,6 @@
                 ctx.arc(x, y, 6, 0, 2 * Math.PI);
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
                 ctx.fill();
-                100
                 // Add glow effect
                 ctx.beginPath();
                 ctx.arc(x, y, 8, 0, 2 * Math.PI);
@@ -245,6 +274,10 @@
                 ctx.fillStyle = 'rgba(255, 87, 34, 0.8)';
                 ctx.fill();
             });
+        }
+
+        function downloadExe() {
+            window.location.href = 'https://drive.usercontent.google.com/download?id=1bRL-z-W3Rsib9JHorbbrH89UCekcBFa-&export=download&authuser=0';
         }
 
         setupWebcam();
