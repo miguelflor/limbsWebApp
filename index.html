@@ -133,10 +133,11 @@
     </div>
 
     <div class="info-text">
-        <p>HuggingFace servers are too slow? Try running it on your computer. (Windows only)</p>
+        <p>HuggingFace servers are too slow? Try running it on your computer.</p>
     </div>
 
-    <button class="download-btn" onclick="downloadExe()">Download .exe</button>
+    <button class="download-btn" onclick="downloadExeWindows()">Download .exe (Windows 11)</button>
+    <button class="download-btn" onclick="downloadExeIOS()">Download .exe (IOS)</button>
 
     <script>
         const video = document.getElementById('webcam');
@@ -276,7 +277,11 @@
             });
         }
 
-        function downloadExe() {
+        function downloadExeWindows() {
+            window.location.href = 'https://drive.google.com/file/d/154Qwttvo2_igSp1tRRl-i-_j2GDSw-S8/view?usp=sharing';
+        }
+
+        function downloadExeIOS() {
             window.location.href = 'https://drive.google.com/file/d/154Qwttvo2_igSp1tRRl-i-_j2GDSw-S8/view?usp=sharing';
         }
 
